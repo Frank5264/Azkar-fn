@@ -142,9 +142,9 @@ const connectionOptions = {
         version
 };
 
-global.conn = makeWASocket(connectionOptions);
+global.client = makeWASocket(connectionOptions);
 
-    if (pairingCode && !conn.authState.creds.registered) {
+    if (pairingCode && !client.authState.creds.registered) {
         if (useMobile) throw new Error('لا يمكن استخدام رمز الاقتران مع Mobile API')
 
         let numeroTelefono
@@ -168,15 +168,15 @@ global.conn = makeWASocket(connectionOptions);
         }
 
         setTimeout(async () => {
-            let codigo = await conn.requestPairingCode(numeroTelefono)
+            let codigo = awaitclient.requestPairingCode(numeroTelefono)
             codigo = codigo?.match(/.{1,4}/g)?.join("-") || codigo
             console.log(chalk.black(chalk.bgGreen(`Su código de emparejamiento: `)), chalk.black(chalk.white(codigo)))
         }, 3000)
     }
 
-conn.isInit = false;
-conn.well = false;
-conn.logger.info(`[ ℹ️ ] جارٍ التحميل...\n`);
+client.isInit = false;
+client.well = false;
+client.logger.info(`[ ℹ️ ] جارٍ التحميل...\n`);
 
 if (!opts['test']) {
   if (global.db) {
@@ -187,7 +187,7 @@ if (!opts['test']) {
   }
 }
 
-if (opts['server']) (await import('./server.js')).default(global.conn, PORT);
+if (opts['server']) (await import('./server.js')).default(global.client, PORT);
 
 
 
@@ -258,9 +258,9 @@ console.log(chalk.bold.red(`Archivo ${file} no borrado` + err))
 async function connectionUpdate(update) {
   const {connection, lastDisconnect, isNewLogin} = update;
   global.stopped = connection;
-  if (isNewLogin) conn.isInit = true;
+  if (isNewLogin)client.isInit = true;
   const code = lastDisconnect?.error?.output?.statusCode || lastDisconnect?.error?.output?.payload?.statusCode;
-  if (code && code !== DisconnectReason.loggedOut && conn?.ws.socket == null) {
+  if (code && code !== DisconnectReason.loggedOut && client?.ws.socket == null) {
     await global.reloadHandler(true).catch(console.error);
     //console.log(await global.reloadHandler(true).catch(console.error));
     global.timestamp.connect = new Date;
@@ -275,28 +275,28 @@ async function connectionUpdate(update) {
 let reason = new Boom(lastDisconnect?.error)?.output?.statusCode;
 if (connection === 'close') {
     if (reason === DisconnectReason.badSession) {
-        conn.logger.error(`[ ⚠ ] جلسة سيئة، يرجى حذف المجلد ${global.authFile} والمسح مرة أخرى.`);
+       client.logger.error(`[ ⚠ ] جلسة سيئة، يرجى حذف المجلد ${global.authFile} والمسح مرة أخرى.`);
         //process.exit();
     } else if (reason === DisconnectReason.connectionClosed) {
-        conn.logger.warn(`[ ⚠ ] تم إغلاق الاتصال، جارٍ إعادة الاتصال...`);
+       client.logger.warn(`[ ⚠ ] تم إغلاق الاتصال، جارٍ إعادة الاتصال...`);
         await global.reloadHandler(true).catch(console.error);
     } else if (reason === DisconnectReason.connectionLost) {
-        conn.logger.warn(`[ ⚠ ] انقطع الاتصال بالخادم، جارٍ إعادة الاتصال...`);
+       client.logger.warn(`[ ⚠ ] انقطع الاتصال بالخادم، جارٍ إعادة الاتصال...`);
         await global.reloadHandler(true).catch(console.error);
     } else if (reason === DisconnectReason.connectionReplaced) {
-        conn.logger.error(`[ ⚠ ] تم استبدال الاتصال، وتم فتح جلسة جديدة أخرى.  الرجاء تسجيل الخروج من الجلسة الحالية أولا.`);
+       client.logger.error(`[ ⚠ ] تم استبدال الاتصال، وتم فتح جلسة جديدة أخرى.  الرجاء تسجيل الخروج من الجلسة الحالية أولا.`);
         //process.exit();
     } else if (reason === DisconnectReason.loggedOut) {
-        conn.logger.error(`[ ⚠ ] تم إغلاق الاتصال، يرجى حذف المجلد ${global.authFile} والمسح مرة أخرى.`);
+       client.logger.error(`[ ⚠ ] تم إغلاق الاتصال، يرجى حذف المجلد ${global.authFile} والمسح مرة أخرى.`);
         //process.exit();
     } else if (reason === DisconnectReason.restartRequired) {
-        conn.logger.info(`[ ⚠ ] يلزم إعادة التشغيل، يرجى إعادة تشغيل الخادم في حالة وجود أي مشكلة.`);
+       client.logger.info(`[ ⚠ ] يلزم إعادة التشغيل، يرجى إعادة تشغيل الخادم في حالة وجود أي مشكلة.`);
         await global.reloadHandler(true).catch(console.error);
     } else if (reason === DisconnectReason.timedOut) {
-        conn.logger.warn(`[ ⚠ ] انتهت مهلة الاتصال، جارٍ إعادة الاتصال...`);
+       client.logger.warn(`[ ⚠ ] انتهت مهلة الاتصال، جارٍ إعادة الاتصال...`);
         await global.reloadHandler(true).catch(console.error);
     } else {
-        conn.logger.warn(`[ ⚠ ] سبب انقطاع الاتصال غير معروف. ${reason || ''}: ${connection || ''}`);
+       client.logger.warn(`[ ⚠ ] سبب انقطاع الاتصال غير معروف. ${reason || ''}: ${connection || ''}`);
         await global.reloadHandler(true).catch(console.error);
     }
 }
@@ -309,64 +309,64 @@ process.on('uncaughtException', console.error);
 
 let isInit = true;
 let handler = await import('./handler.js');
-global.reloadHandler = async function(restatConn) {
+global.reloadHandler = async function(restatclient) {
   try {
     const Handler = await import(`./handler.js?update=${Date.now()}`).catch(console.error);
     if (Object.keys(Handler || {}).length) handler = Handler;
   } catch (e) {
     console.error(e);
   }
-  if (restatConn) {
-    const oldChats = global.conn.chats;
+  if (restatclient) {
+    const oldChats = global.client.chats;
     try {
-      global.conn.ws.close();
+      global.client.ws.close();
     } catch { }
-    conn.ev.removeAllListeners();
-    global.conn = makeWASocket(connectionOptions, {chats: oldChats});
+   client.ev.removeAllListeners();
+    global.client = makeWASocket(connectionOptions, {chats: oldChats});
     isInit = true;
   }
   if (!isInit) {
-    conn.ev.off('messages.upsert', conn.handler);
-    conn.ev.off('group-participants.update', conn.participantsUpdate);
-    conn.ev.off('groups.update', conn.groupsUpdate);
-    conn.ev.off('message.delete', conn.onDelete);
-    conn.ev.off('call', conn.onCall);
-    conn.ev.off('connection.update', conn.connectionUpdate);
-    conn.ev.off('creds.update', conn.credsUpdate);
+   client.ev.off('messages.upsert',client.handler);
+   client.ev.off('group-participants.update',client.participantsUpdate);
+   client.ev.off('groups.update',client.groupsUpdate);
+   client.ev.off('message.delete',client.onDelete);
+   client.ev.off('call',client.onCall);
+   client.ev.off('connection.update',client.connectionUpdate);
+   client.ev.off('creds.update',client.credsUpdate);
   }
 
-  conn.welcome = '👋 ¡ مرحب بيك !\nيا @user';
-  conn.bye = '👋 ¡ مع السلامة !\nيا @user';
-  conn.spromote = '*[ ℹ️ ] @user مبروك بقيت ادمن يابرو.*';
-  conn.sdemote = '*[ ℹ️ ] @user لو شايفينك راجل مكنوش نزلوك من الادمنز 😂.*';
-  conn.sDesc = '*[ ℹ️ ] La descripción del grupo ha sido modificada.*';
-  conn.sSubject = '*[ ℹ️ ] El nombre del grupo ha sido modificado.*';
-  conn.sIcon = '*[ ℹ️ ] Se ha cambiado la foto de perfil del grupo.*';
-  conn.sRevoke = '*[ ℹ️ ] El enlace de invitación al grupo ha sido restablecido.*';
+ client.welcome = '👋 ¡ مرحب بيك !\nيا @user';
+ client.bye = '👋 ¡ مع السلامة !\nيا @user';
+ client.spromote = '*[ ℹ️ ] @user مبروك بقيت ادمن يابرو.*';
+ client.sdemote = '*[ ℹ️ ] @user لو شايفينك راجل مكنوش نزلوك من الادمنز 😂.*';
+ client.sDesc = '*[ ℹ️ ] La descripción del grupo ha sido modificada.*';
+ client.sSubject = '*[ ℹ️ ] El nombre del grupo ha sido modificado.*';
+ client.sIcon = '*[ ℹ️ ] Se ha cambiado la foto de perfil del grupo.*';
+ client.sRevoke = '*[ ℹ️ ] El enlace de invitación al grupo ha sido restablecido.*';
 
-  conn.handler = handler.handler.bind(global.conn);
-  conn.participantsUpdate = handler.participantsUpdate.bind(global.conn);
-  conn.groupsUpdate = handler.groupsUpdate.bind(global.conn);
-  conn.onDelete = handler.deleteUpdate.bind(global.conn);
-  conn.onCall = handler.callUpdate.bind(global.conn);
-  conn.connectionUpdate = connectionUpdate.bind(global.conn);
-  conn.credsUpdate = saveCreds.bind(global.conn, true);
+ client.handler = handler.handler.bind(global.client);
+ client.participantsUpdate = handler.participantsUpdate.bind(global.client);
+ client.groupsUpdate = handler.groupsUpdate.bind(global.client);
+ client.onDelete = handler.deleteUpdate.bind(global.client);
+ client.onCall = handler.callUpdate.bind(global.client);
+ client.connectionUpdate = connectionUpdate.bind(global.client);
+ client.credsUpdate = saveCreds.bind(global.client, true);
 
   const currentDateTime = new Date();
-  const messageDateTime = new Date(conn.ev);
+  const messageDateTime = new Date(client.ev);
   if (currentDateTime >= messageDateTime) {
-    const chats = Object.entries(conn.chats).filter(([jid, chat]) => !jid.endsWith('@g.us') && chat.isChats).map((v) => v[0]);
+    const chats = Object.entries(client.chats).filter(([jid, chat]) => !jid.endsWith('@g.us') && chat.isChats).map((v) => v[0]);
   } else {
-    const chats = Object.entries(conn.chats).filter(([jid, chat]) => !jid.endsWith('@g.us') && chat.isChats).map((v) => v[0]);
+    const chats = Object.entries(client.chats).filter(([jid, chat]) => !jid.endsWith('@g.us') && chat.isChats).map((v) => v[0]);
   }
 
-  conn.ev.on('messages.upsert', conn.handler);
-  conn.ev.on('group-participants.update', conn.participantsUpdate);
-  conn.ev.on('groups.update', conn.groupsUpdate);
-  conn.ev.on('message.delete', conn.onDelete);
-  conn.ev.on('call', conn.onCall);
-  conn.ev.on('connection.update', conn.connectionUpdate);
-  conn.ev.on('creds.update', conn.credsUpdate);
+ client.ev.on('messages.upsert',client.handler);
+ client.ev.on('group-participants.update',client.participantsUpdate);
+ client.ev.on('groups.update',client.groupsUpdate);
+ client.ev.on('message.delete',client.onDelete);
+ client.ev.on('call',client.onCall);
+ client.ev.on('connection.update',client.connectionUpdate);
+ client.ev.on('creds.update',client.credsUpdate);
   isInit = false;
   return true;
 };
@@ -411,7 +411,7 @@ async function filesInit() {
       const module = await import(file);
       global.plugins[filename] = module.default || module;
     } catch (e) {
-      conn.logger.error(e);
+     client.logger.error(e);
       delete global.plugins[filename];
     }
   }
@@ -422,23 +422,23 @@ global.reload = async (_ev, filename) => {
   if (pluginFilter(filename)) {
     const dir = global.__filename(join(pluginFolder, filename), true);
     if (filename in global.plugins) {
-      if (existsSync(dir)) conn.logger.info(` updated plugin - '${filename}'`);
+      if (existsSync(dir))client.logger.info(` updated plugin - '${filename}'`);
       else {
-        conn.logger.warn(`deleted plugin - '${filename}'`);
+       client.logger.warn(`deleted plugin - '${filename}'`);
         return delete global.plugins[filename];
       }
-    } else conn.logger.info(`new plugin - '${filename}'`);
+    } elseclient.logger.info(`new plugin - '${filename}'`);
     const err = syntaxerror(readFileSync(dir), filename, {
       sourceType: 'module',
       allowAwaitOutsideFunction: true,
     });
-    if (err) conn.logger.error(`syntax error while loading '${filename}'\n${format(err)}`);
+    if (err)client.logger.error(`syntax error while loading '${filename}'\n${format(err)}`);
     else {
       try {
         const module = (await import(`${global.__filename(dir)}?update=${Date.now()}`));
         global.plugins[filename] = module.default || module;
       } catch (e) {
-        conn.logger.error(`error require plugin '${filename}\n${format(e)}'`);
+       client.logger.error(`error require plugin '${filename}\n${format(e)}'`);
       } finally {
         global.plugins = Object.fromEntries(Object.entries(global.plugins).sort(([a], [b]) => a.localeCompare(b)));
       }
@@ -473,22 +473,22 @@ async function _quickTest() {
   Object.freeze(global.support);
 }
 setInterval(async () => {
-  if (stopped === 'close' || !conn || !conn.user) return;
+  if (stopped === 'close' || !client || !client.user) return;
   const a = await clearTmp();
   //console.log(chalk.cyanBright(`\n▣───────────[ 𝙰𝚄𝚃𝙾𝙲𝙻𝙴𝙰𝚁TMP ]──────────────···\n│\n▣─❧ 𝙰𝚁𝙲𝙷𝙸𝚅𝙾𝚂 𝙴𝙻𝙸𝙼𝙸𝙽𝙰𝙳𝙾𝚂 ✅\n│\n▣───────────────────────────────────────···\n`));
 }, 180000);
 setInterval(async () => {
-  if (stopped === 'close' || !conn || !conn.user) return;
+  if (stopped === 'close' || !client || !client.user) return;
   await purgeSession();
   //console.log(chalk.cyanBright(`\n▣────────[ AUTOPURGESESSIONS ]───────────···\n│\n▣─❧ ARCHIVOS ELIMINADOS ✅\n│\n▣────────────────────────────────────···\n`));
 }, 1000 * 60 * 60);
 setInterval(async () => {
-  if (stopped === 'close' || !conn || !conn.user) return;
+  if (stopped === 'close' || !client || !client.user) return;
   await purgeSessionSB();
   //console.log(chalk.cyanBright(`\n▣────────[ AUTO_PURGE_SESSIONS_SUB-BOTS ]───────────···\n│\n▣─❧ ARCHIVOS ELIMINADOS ✅\n│\n▣────────────────────────────────────···\n`));
 }, 1000 * 60 * 60);
 setInterval(async () => {
-  if (stopped === 'close' || !conn || !conn.user) return;
+  if (stopped === 'close' || !client || !client.user) return;
   await purgeOldFiles();
   //console.log(chalk.cyanBright(`\n▣────────[ AUTO_PURGE_OLDFILES ]───────────···\n│\n▣─❧ ARCHIVOS ELIMINADOS ✅\n│\n▣────────────────────────────────────···\n`));
 }, 1000 * 60 * 60);
@@ -520,7 +520,7 @@ setInterval(async () => {
     const bio = `[⏳️] 𝚃𝙸𝙼𝙴 : ${currentTime} ┊ ﴾قُلْ رَبِّ زِدْنِي عِلْمًا ﴿ ⇆ 𝓕𝓷 𓅃`;
 
     // قم بتحديث حالة البروفايل
-    conn.updateProfileStatus(bio).catch((err) => {
+   client.updateProfileStatus(bio).catch((err) => {
       console.error('Error updating profile status:', err);
     });
   } catch (error) {
